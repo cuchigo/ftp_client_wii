@@ -8,6 +8,10 @@
 #include <debug.h>
 #include <errno.h>
 #include <wiiuse/wpad.h>
+#include <unistd.h>
+#include <fat.h>
+#include <fcntl.h>
+
 
 static void *xfb = 0;
 static GXRModeObj *rmode = 0;
@@ -79,7 +83,7 @@ char* php_strstr(const char* haystack, const char* needle, char** before, char**
 
 
 void *initialise();
-void *httpd (void *arg);
+void *httpd (int port);
 
 static lwp_t thread = LWP_THREAD_NULL;
 
@@ -91,6 +95,8 @@ void split(char *str, char *delim) {
     }
 }
 
+
+
 //---------------------------------------------------------------------------------
 int main(int argc, char **argv) {
 //---------------------------------------------------------------------------------
@@ -101,9 +107,15 @@ int main(int argc, char **argv) {
 	char netmask[16] = {0};
 
 	xfb = initialise();
+    if (!fatInitDefault()) {
+		printf("Error al iniciar fat.\n");
+		return 1;
+	}
+    else{
+        printf("Fat iniciado correctamente.");
+    }
 
-	printf ("\nlibogc network demo\n");
-	printf("Configuring network ...\n");
+	printf("Configurando red ...\n");
 
 	// Configure the network interface
 	ret2 = if_config ( localip, netmask, gateway, TRUE, 20);
@@ -113,7 +125,6 @@ int main(int argc, char **argv) {
 	} else {
 		printf ("network configuration failed!\n");
 	}
-/*
 
 	int sock;
     struct sockaddr_in server;
@@ -138,12 +149,13 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+
     if (net_recv(sock, server_reply, 2000, 0) < 0) {
         printf("Error al recibir la respuesta");
         return 0;
     }
 
-    printf("Conectado: %s\n", server_reply);
+    printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
     //USER
 	if (net_send(sock, "USER usu\r\n", strlen("USER usu\r\n"), 0) < 0){
 		printf("Error USER command.");
@@ -154,7 +166,7 @@ int main(int argc, char **argv) {
         printf("Error al recibir la respuesta");
         return 0;
     }
-	printf("Respuesta: %s\n", server_reply);
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
 
 	//PASSWORD
 	if (net_send(sock, "PASS contra\r\n", strlen("PASS contra\r\n"), 0) < 0){
@@ -166,7 +178,7 @@ int main(int argc, char **argv) {
         printf("Error al recibir la respuesta");
         return 0;
     }
-	printf("Respuesta: %s\n", server_reply);
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
 
 	//TYPE I
 	if (net_send(sock, "TYPE I\r\n", strlen("TYPE I\r\n"), 0) < 0){
@@ -178,7 +190,7 @@ int main(int argc, char **argv) {
         printf("Error al recibir la respuesta");
         return 0;
     }
-	printf("Respuesta: %s\n", server_reply);
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
 
 	//PASV
 	if (net_send(sock, "PASV\r\n", strlen("PASV\r\n"), 0) < 0){
@@ -202,15 +214,72 @@ int main(int argc, char **argv) {
     php_strstr(result, needle, &before, &after);
 
 	int port = atoi(before) * 256 + atoi(after);
-	printf("Port: %d\n",port);*/
-	u32 thread_id = LWP_CreateThread(&thread,httpd,"hOLA",0,50);
-    LWP_ThreadSignal(thread_id);
-                        /*
-	printf("Respuesta: %s\n", server_reply);
-	
+	printf("Port: %d\n",port);
+	LWP_CreateThread(&thread,httpd,port,0, 100*1024,50);
 
+                        
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
+	//CWD
+	if (net_send(sock, "CWD Users/Edgar/Documents\r\n", strlen("CWD Users/Edgar/Documents\r\n"), 0) < 0){
+		printf("Error CWD command.");
+		return 0;
+	}
+
+    if (net_recv(sock, server_reply, 2000, 0) < 0) {
+        printf("Error al recibir la respuesta");
+        return 0;
+    }
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
+
+    //LIST
+	if (net_send(sock, "LIST\r\n", strlen("LIST\r\n"), 0) < 0){
+		printf("Error LIST command.");
+		return 0;
+	}
+
+    if (net_recv(sock, server_reply, 2000, 0) < 0) {
+        printf("Error al recibir la respuesta");
+        return 0;
+    }
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
+
+    //RETR 
+	if (net_send(sock, "RETR test_ftp.txt\r\n", strlen("RETR test_ftp.txt\r\n"), 0) < 0){
+		printf("Error RETR command.");
+		return 0;
+	}
+
+    if (net_recv(sock, server_reply, 2000, 0) < 0) {
+        printf("Error al recibir la respuesta");
+        return 0;
+    }
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
+
+    //NOOP 
+	if (net_send(sock, "NOOP\r\n", strlen("NOOP\r\n"), 0) < 0){
+		printf("Error NOOP command.");
+		return 0;
+	}
+
+    if (net_recv(sock, server_reply, 2000, 0) < 0) {
+        printf("Error al recibir la respuesta");
+        return 0;
+    }
+    printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
+
+    //QUIT
+	if (net_send(sock, "QUIT\r\n", strlen("QUIT\r\n"), 0) < 0){
+		printf("Error QUIT command.");
+		return 0;
+	}
+
+    if (net_recv(sock, server_reply, 2000, 0) < 0) {
+        printf("Error al recibir la respuesta");
+        return 0;
+    }
+	printf("Respuesta: %s\n", replaceWord(server_reply,"\r",""));
     net_close(sock);
-*/
+
 
 
 	while(1) {
@@ -229,12 +298,13 @@ int main(int argc, char **argv) {
 }
 
 
-void *httpd (void *arg) {
-	char* result;
-int sock;
-    struct sockaddr_in server;
-    char server_reply[2000];
+void *httpd (int port) {
 
+    FILE *f;
+    int sock;
+    struct sockaddr_in server;
+    char server_reply[20000];
+    printf("Puerto: %d",port);
     // Crea el socket
     sock = net_socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
@@ -244,91 +314,41 @@ int sock;
     // Especifica la dirección del servidor
     server.sin_addr.s_addr = inet_addr("192.168.1.184"); // Dirección IP del servidor
     server.sin_family = AF_INET;
-    server.sin_port = htons(21); // Puerto del servidor
+    server.sin_port = htons(port); // Puerto del servidor
 
-	//net_send(csock, http_200, strlen(http_200), 0);
 
     // Conecta al servidor
-    if (net_connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        perror("Error al conectar");
+    
+    int ret = net_connect(sock, (struct sockaddr *)&server, sizeof(server));
+    printf("Ret: %d",ret);
+    if (ret < 0) {
+        printf("Error al conectar");
         return NULL;
     }
 
-    if (net_recv(sock, server_reply, 2000, 0) < 0) {
-        printf("Error al recibir la respuesta");
-        return NULL;
-    }
+    
+       if (net_recv(sock, server_reply, 20000, 0) < 0) {
+           printf("Error al recibir la respuesta");
+           return NULL;
+       }
+       printf("Datos: %s",server_reply);
+       int compare = strcmp(server_reply,"\0");
+       printf("Compare: %d",compare);
+       if (strcmp(server_reply,"\0") != 0) {
+        
+           f = fopen("sd:/test_ftp.txt","w");
+           if (f==NULL){
+               printf("No se ha podido acceder");
+               return NULL;
+           }
+           fputs(server_reply,f);
+           fclose(f);
 
-    printf("Conectado: %s\n", server_reply);
-    //USER
-	if (net_send(sock, "USER usu\r\n", strlen("USER usu\r\n"), 0) < 0){
-		printf("Error USER command.");
-		return NULL;
-	}
-	
-    if (net_recv(sock, server_reply, 2000, 0) < 0) {
-        printf("Error al recibir la respuesta");
-        return NULL;
-    }
-	printf("Respuesta: %s\n", server_reply);
 
-	//PASSWORD
-	if (net_send(sock, "PASS contra\r\n", strlen("PASS contra\r\n"), 0) < 0){
-		printf("Error PASS command.");
-		return NULL;
-	}
-
-    if (net_recv(sock, server_reply, 2000, 0) < 0) {
-        printf("Error al recibir la respuesta");
-        return NULL;
-    }
-	printf("Respuesta: %s\n", server_reply);
-
-	//TYPE I
-	if (net_send(sock, "TYPE I\r\n", strlen("TYPE I\r\n"), 0) < 0){
-		printf("Error TYPE command.");
-		return NULL;
-	}
-
-    if (net_recv(sock, server_reply, 2000, 0) < 0) {
-        printf("Error al recibir la respuesta");
-        return NULL;
-    }
-	printf("Respuesta: %s\n", server_reply);
-
-	//PASV
-	if (net_send(sock, "PASV\r\n", strlen("PASV\r\n"), 0) < 0){
-		printf("Error PASV command.");
-		return NULL;
-	}
-
-    if (net_recv(sock, server_reply, 2000, 0) < 0) {
-        printf("Error al recibir la respuesta");
-        return NULL;
-    }
-	result = replaceWord(server_reply,"227 Entering passive mode (192,168,1,184,","");
-	result = replaceWord(result, ".", "");
-	result = replaceWord(result, ")", "");
-	result = replaceWord(result,","," ");
-
-    printf(result);
-
-    char needle[] = " ";
-    char *before, *after;
-    php_strstr(result, needle, &before, &after);
-
-	int port = atoi(before) * 256 + atoi(after);
-	printf("Port: %d\n",port);
-	LWP_CreateThread(	&httd_handle,	
-						httpd,			
-						"hOLA",		
-						0,			
-						16*1024,		
-						50);
-	printf("Respuesta: %s\n", server_reply);
-	
-
-    net_close(sock);
+           printf("Conectado servidor datos: %s\n", server_reply);
+       }
+    
+    
     return 0;
 	}
 
